@@ -1,0 +1,11 @@
+# Results summary
+
+| name                | best_params                                                                 |   cv_accuracy |   val_accuracy |   test_accuracy |   test_macro_f1 |   train_seconds | model_path                           |
+|:--------------------|:----------------------------------------------------------------------------|--------------:|---------------:|----------------:|----------------:|----------------:|:-------------------------------------|
+| cnn_resnet50        | {}                                                                          |    nan        |       0.892128 |        0.845272 |        0.838022 |      nan        | artifacts/cnn_best.pt                |
+| svm                 | {'clf__C': 0.5, 'clf__kernel': 'linear'}                                    |      0.759805 |       0.810496 |        0.787966 |        0.763439 |        1.90084  | artifacts/svm.joblib                 |
+| logistic_regression | {'clf__C': 0.3}                                                             |      0.777839 |       0.793003 |        0.756447 |        0.746941 |        0.191861 | artifacts/logistic_regression.joblib |
+| gradient_boosting   | {'clf__learning_rate': 0.05, 'clf__max_depth': 3, 'clf__n_estimators': 200} |      0.76727  |       0.793003 |        0.750716 |        0.733346 |       18.7079   | artifacts/gradient_boosting.joblib   |
+| decision_tree       | {'clf__max_depth': 10}                                                      |      0.740514 |       0.766764 |        0.716332 |        0.702446 |        1.84892  | artifacts/decision_tree.joblib       |
+| knn                 | {'clf__n_neighbors': 9}                                                     |      0.701341 |       0.717201 |        0.696275 |        0.677971 |        0.220525 | artifacts/knn.joblib                 |
+| naive_bayes         | {}                                                                          |      0.368989 |       0.355685 |        0.338109 |        0.325859 |        0.149687 | artifacts/naive_bayes.joblib         |

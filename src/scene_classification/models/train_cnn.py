@@ -7,6 +7,7 @@ accuracy. Experiments tracked to MLflow.
 
 from __future__ import annotations
 
+import json
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -36,6 +37,7 @@ class CNNConfig:
 class CNNResult:
     val_accuracy: float
     test_accuracy: float
+    test_macro_f1: float
     train_seconds: float
     weights_path: Path
 
@@ -100,6 +102,21 @@ def _evaluate(model: nn.Module, loader: DataLoader, device: torch.device) -> flo
     return correct / max(total, 1)
 
 
+@torch.no_grad()
+def _predict_all(
+    model: nn.Module, loader: DataLoader, device: torch.device
+) -> tuple[list[int], list[int]]:
+    model.eval()
+    y_true: list[int] = []
+    y_pred: list[int] = []
+    for x, y in loader:
+        x = x.to(device)
+        pred = model(x).argmax(dim=1).cpu().tolist()
+        y_true.extend(y.tolist())
+        y_pred.extend(pred)
+    return y_true, y_pred
+
+
 def run(settings: Settings, cfg: CNNConfig | None = None) -> CNNResult:
     cfg = cfg or CNNConfig()
     splits_root = settings.processed_dir / "splits"
@@ -158,18 +175,38 @@ def run(settings: Settings, cfg: CNNConfig | None = None) -> CNNResult:
         ckpt = torch.load(weights_path, map_location=device)
         model.load_state_dict(ckpt["state_dict"])
         test_acc = _evaluate(model, test_loader, device)
+
+        from sklearn.metrics import f1_score
+
+        y_true, y_pred = _predict_all(model, test_loader, device)
+        test_f1 = float(f1_score(y_true, y_pred, average="macro"))
+
         train_seconds = time.perf_counter() - t0
         mlflow.log_metrics({
             "best_val_accuracy": best_val,
             "best_epoch": best_epoch,
             "test_accuracy": test_acc,
+            "test_macro_f1": test_f1,
             "train_seconds": train_seconds,
         })
         mlflow.log_artifact(str(weights_path))
 
+    cnn_summary = {
+        "name": f"cnn_{cfg.arch}",
+        "val_accuracy": best_val,
+        "test_accuracy": test_acc,
+        "test_macro_f1": test_f1,
+        "train_seconds": train_seconds,
+        "best_epoch": best_epoch,
+        "classes": classes,
+        "weights_path": str(weights_path),
+    }
+    (settings.artifacts_root / "cnn_summary.json").write_text(json.dumps(cnn_summary, indent=2))
+
     return CNNResult(
         val_accuracy=best_val,
         test_accuracy=test_acc,
+        test_macro_f1=test_f1,
         train_seconds=train_seconds,
         weights_path=weights_path,
     )

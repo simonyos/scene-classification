@@ -1,8 +1,8 @@
 """
 Tabular classifiers over YOLO object features.
 
-Models: Decision Tree, KNN, Naive Bayes, SVM (paper baselines) + Logistic Regression and
-XGBoost (stronger modern baselines). Experiments tracked to MLflow.
+Models: Decision Tree, KNN, Naive Bayes, SVM (paper baselines) + Logistic Regression
+and Gradient Boosting (stronger modern baselines). Experiments tracked to MLflow.
 """
 
 from __future__ import annotations
@@ -16,6 +16,7 @@ import joblib
 import mlflow
 import numpy as np
 import pandas as pd
+from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, classification_report, f1_score
 from sklearn.model_selection import GridSearchCV, StratifiedKFold
@@ -25,7 +26,6 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
-from xgboost import XGBClassifier
 
 from scene_classification.config import Settings
 
@@ -68,24 +68,14 @@ def _model_specs() -> dict[str, tuple[Pipeline, dict]]:
         "logistic_regression": (
             Pipeline([
                 ("scaler", StandardScaler()),
-                ("clf", LogisticRegression(max_iter=2000, multi_class="auto")),
+                ("clf", LogisticRegression(max_iter=2000)),
             ]),
             {"clf__C": [0.3, 1.0, 3.0]},
         ),
-        "xgboost": (
-            Pipeline([
-                (
-                    "clf",
-                    XGBClassifier(
-                        tree_method="hist",
-                        eval_metric="mlogloss",
-                        random_state=0,
-                        n_jobs=-1,
-                    ),
-                )
-            ]),
+        "gradient_boosting": (
+            Pipeline([("clf", GradientBoostingClassifier(random_state=0))]),
             {
-                "clf__max_depth": [4, 6, 8],
+                "clf__max_depth": [3, 5],
                 "clf__n_estimators": [200, 400],
                 "clf__learning_rate": [0.05, 0.1],
             },
@@ -106,7 +96,7 @@ def _fit_one(
     X_test, y_test = splits["test"]
 
     cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=seed)
-    search = GridSearchCV(pipeline, grid or {"clf__random_state": [seed]}, cv=cv, n_jobs=-1)
+    search = GridSearchCV(pipeline, grid or {}, cv=cv, n_jobs=-1)
 
     t0 = time.perf_counter()
     search.fit(X_train, y_train)

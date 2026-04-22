@@ -8,7 +8,8 @@ def _make_dummy_dataset(root, classes, per_class):
     for cls in classes:
         (root / cls).mkdir(parents=True, exist_ok=True)
         for i in range(per_class):
-            Image.new("RGB", (32, 32), color=(i * 3 % 255, 0, 0)).save(root / cls / f"{cls}_{i}.jpg")
+            img = Image.new("RGB", (32, 32), color=(i * 3 % 255, 0, 0))
+            img.save(root / cls / f"{cls}_{i}.jpg")
 
 
 def test_stratified_split_counts(tmp_path, monkeypatch):

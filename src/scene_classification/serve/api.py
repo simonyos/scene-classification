@@ -91,7 +91,7 @@ def health() -> dict[str, str]:
 
 
 @app.post("/predict", response_model=Prediction)
-async def predict(image: UploadFile = File(...)) -> Prediction:
+async def predict(image: UploadFile = File(...)) -> Prediction:  # noqa: B008
     if not image.content_type or not image.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="Upload must be an image.")
 

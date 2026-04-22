@@ -2,13 +2,14 @@
 Evaluation and figure generation.
 
 Produces:
-  reports/figures/confusion_<model>.png
+  reports/figures/confusion_<model>.png (tabular + CNN)
   reports/figures/comparison_bar.png
   reports/summary.md
 """
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import joblib
@@ -58,6 +59,43 @@ def _comparison_bar(summary: pd.DataFrame, out: Path) -> None:
     plt.close(fig)
 
 
+def _cnn_confusion(settings: Settings, labels: list[str], figs_dir: Path) -> None:
+    import torch
+    from torch import nn
+    from torch.utils.data import DataLoader
+    from torchvision import datasets, models, transforms
+
+    weights_path = settings.artifacts_root / "cnn_best.pt"
+    ckpt = torch.load(weights_path, map_location="cpu", weights_only=False)
+    classes = ckpt["classes"]
+
+    device = torch.device("mps") if torch.backends.mps.is_available() else torch.device("cpu")
+    m = models.resnet50(weights=None)
+    m.fc = nn.Linear(m.fc.in_features, len(classes))
+    m.load_state_dict(ckpt["state_dict"])
+    m.to(device).eval()
+
+    tf = transforms.Compose([
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+    ])
+    ds = datasets.ImageFolder(settings.processed_dir / "splits" / "test", transform=tf)
+    loader = DataLoader(ds, batch_size=32, shuffle=False, num_workers=0)
+
+    y_true: list[str] = []
+    y_pred: list[str] = []
+    with torch.no_grad():
+        for x, y in loader:
+            yh = m(x.to(device)).argmax(1).cpu().tolist()
+            y_true.extend([classes[i] for i in y.tolist()])
+            y_pred.extend([classes[i] for i in yh])
+
+    out = figs_dir / "confusion_cnn_resnet50.png"
+    _confusion_figure(y_true, y_pred, labels, out, "cnn_resnet50")
+
+
 def run(settings: Settings) -> Path:
     figs_dir = Path("reports/figures")
     summary_path = settings.artifacts_root / "tabular_summary.csv"
@@ -75,9 +113,26 @@ def run(settings: Settings) -> Path:
             y_test, pred, labels, figs_dir / f"confusion_{row['name']}.png", row["name"]
         )
 
-    _comparison_bar(summary.sort_values("test_accuracy", ascending=False), figs_dir / "comparison_bar.png")
+    cnn_summary_path = settings.artifacts_root / "cnn_summary.json"
+    if cnn_summary_path.exists():
+        cnn = json.loads(cnn_summary_path.read_text())
+        cnn_row = {
+            "name": cnn["name"],
+            "best_params": "{}",
+            "cv_accuracy": np.nan,
+            "val_accuracy": cnn["val_accuracy"],
+            "test_accuracy": cnn["test_accuracy"],
+            "test_macro_f1": cnn["test_macro_f1"],
+            "train_seconds": cnn.get("train_seconds"),
+            "model_path": cnn["weights_path"],
+        }
+        summary = pd.concat([summary, pd.DataFrame([cnn_row])], ignore_index=True)
+        _cnn_confusion(settings, labels, figs_dir)
 
-    md = ["# Results summary", "", summary.to_markdown(index=False)]
+    ranked = summary.sort_values("test_accuracy", ascending=False)
+    _comparison_bar(ranked, figs_dir / "comparison_bar.png")
+
+    md = ["# Results summary", "", ranked.to_markdown(index=False)]
     out_md = Path("reports/summary.md")
     out_md.parent.mkdir(parents=True, exist_ok=True)
     out_md.write_text("\n".join(md))
