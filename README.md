@@ -1,5 +1,7 @@
 # Scene Classification — YOLO object features vs. transfer-learned CNN
 
+[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/simonyos/scene-classification/blob/main/notebooks/scene_classification_colab.ipynb)
+
 An honest redo of *Scene Classification with Simple Machine Learning and Convolutional Neural Network*
 (Yosboon, 2022) with a credible dataset size, modern tooling, reproducible pipeline,
 experiment tracking, and a deployable inference API.
